@@ -13,52 +13,45 @@
     const originalFetch = window.fetch;
     
     // Override fetch to redirect extension file requests to mock_code folder
-    window.fetch = async function (...args) {
+    window.fetch = function (...args) {
         let url = args[0];
         const options = args[1];
 
-        try {
-            if (typeof url === 'string') {
-                // Check if this is an extension-related request
-                const isExtensionRequest = url.startsWith('chrome-extension://') || 
-                                          url.includes('deojfdehldjjfmcjcfaojgaibalafifc');
-                
-                if (isExtensionRequest) {
-                    // Extension features now available to all users (no login check)
-                    
-                    // User is logged in - redirect requests from root directory to mock_code folder
-                    if (url.includes('manifest.json')) {
-                        console.log('🎯 Redirecting manifest.json request from:', url);
-                        // Change the URL to point to mock_code folder
-                        url = url.replace(/manifest\.json$/, 'data/inject/mock_code/manifest.json');
-                        console.log('   → Redirected to:', url);
-                    }
-                    else if (url.includes('minifiedBackground.js')) {
-                        console.log('🎯 Redirecting minifiedBackground.js request from:', url);
-                        url = url.replace(/minifiedBackground\.js$/, 'data/inject/mock_code/minifiedBackground.js');
-                        console.log('   → Redirected to:', url);
-                    }
-                    else if (url.includes('minifiedContent-script.js') || url.includes('minifiedContent.js')) {
-                        console.log('🎯 Redirecting minifiedContent-script.js request from:', url);
-                        url = url.replace(/minifiedContent(?:-script)?\.js$/, 'data/inject/mock_code/minifiedContent-script.js');
-                        console.log('   → Redirected to:', url);
-                    }
-                    else if (url.includes('rules.json')) {
-                        console.log('🎯 Redirecting rules.json request from:', url);
-                        url = url.replace(/rules\.json$/, 'data/inject/mock_code/rules.json');
-                        console.log('   → Redirected to:', url);
-                    }
-                }
-            }
-
-            // Use original fetch with the potentially modified URL
-            return await originalFetch.call(this, url, options);
-
-        } catch (error) {
-            // If anything goes wrong, fall back to original fetch with original args
-            return await originalFetch.apply(this, args);
+        // Check if this is an extension-related request
+        let isExtensionRequest = false;
+        if (typeof url === 'string') {
+            isExtensionRequest = url.startsWith('chrome-extension://') || 
+                                 url.includes('deojfdehldjjfmcjcfaojgaibalafifc');
         }
+
+        // IMMEDIATELY pass through non-extension requests to avoid interference and CSP blame
+        if (!isExtensionRequest) {
+            return originalFetch.apply(this, args);
+        }
+
+        // For extension requests, perform redirection logic
+        return (async () => {
+            try {
+                if (url.includes('manifest.json')) {
+                    url = url.replace(/manifest\.json$/, 'data/inject/mock_code/manifest.json');
+                }
+                else if (url.includes('minifiedBackground.js')) {
+                    url = url.replace(/minifiedBackground\.js$/, 'data/inject/mock_code/minifiedBackground.js');
+                }
+                else if (url.includes('minifiedContent-script.js') || url.includes('minifiedContent.js')) {
+                    url = url.replace(/minifiedContent(?:-script)?\.js$/, 'data/inject/mock_code/minifiedContent-script.js');
+                }
+                else if (url.includes('rules.json')) {
+                    url = url.replace(/rules\.json$/, 'data/inject/mock_code/rules.json');
+                }
+                
+                return await originalFetch.call(this, url, options);
+            } catch (error) {
+                // Fallback to original if something fails in our redirection
+                return await originalFetch.apply(this, args);
+            }
+        })();
     };
 
-    console.log('✅ Fetch interceptor installed - will handle extension verification based on login status');
+    console.log('✅ Fetch interceptor installed');
 })();

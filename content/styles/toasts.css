@@ -1,0 +1,497 @@
+/* 
+  Neopass Injected Toasts CSS
+  This stylesheet manages all styles for the on-page notifications (toasts, alerts, loaders).
+  Avoid hardcoding inline styles in JavaScript.
+
+  Design System: Matched to popup.css purple/black HUD aesthetic.
+*/
+
+:root {
+  --neopass-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --neopass-radius: 3px;
+  --neopass-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 20px rgba(168, 85, 247, 0.08);
+  --neopass-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Color Palette — synced with popup.css */
+  --neopass-bg-base: #08000F;
+  --neopass-bg-surface: #100018;
+  --neopass-bg-elevated: #1A0028;
+  --neopass-bg-dark: rgba(16, 0, 24, 0.92);
+  --neopass-bg-error: rgba(40, 8, 12, 0.92);
+  --neopass-border-default: rgba(168, 85, 247, 0.15);
+  --neopass-border-active: rgba(168, 85, 247, 0.5);
+  --neopass-border-error: rgba(248, 113, 113, 0.25);
+  --neopass-accent: #A855F7;
+  --neopass-accent-deep: #7C3AED;
+  --neopass-accent-glow: rgba(168, 85, 247, 0.2);
+  --neopass-text-primary: #F3E8FF;
+  --neopass-text-secondary: rgba(243, 232, 255, 0.55);
+  --neopass-text-muted: rgba(243, 232, 255, 0.28);
+  --neopass-text-error: #F87171;
+  --neopass-success: #4ADE80;
+  --neopass-warning: #FBBF24;
+}
+
+/* ── Toast Animations ── */
+@keyframes neopassPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.3); }
+}
+
+@keyframes neopassFadeIn {
+  from { opacity: 0; transform: translateY(-14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes neopassFadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-14px); }
+}
+
+@keyframes neopassSlideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(16px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes neopassAccentPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.15); }
+  50% { box-shadow: 0 0 12px 2px rgba(168, 85, 247, 0.12); }
+}
+
+/* ══════════════════════════════════════════════
+   1. BASE TOAST CONTAINER
+   ══════════════════════════════════════════════ */
+.neopass-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--neopass-bg-dark);
+  color: var(--neopass-text-primary);
+  padding: 0;
+  border-radius: var(--neopass-radius);
+  z-index: 999999;
+  opacity: 0;
+  transition: var(--neopass-transition);
+  max-width: 340px;
+  min-width: 280px;
+  font-family: var(--neopass-font);
+  box-shadow: var(--neopass-shadow);
+  border: 1px solid var(--neopass-border-default);
+  border-left: 3px solid var(--neopass-accent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  overflow: hidden;
+}
+
+.neopass-toast.neopass-toast-show {
+  transform: translateX(-50%) translateY(0);
+  animation: neopassAccentPulse 3s ease-in-out infinite;
+}
+
+/* MCQ Toast — wider for answer display */
+.neopass-toast.neopass-toast-mcq {
+  max-width: 420px;
+}
+
+/* Error State */
+.neopass-toast.neopass-toast-error {
+  background: var(--neopass-bg-error);
+  border-color: var(--neopass-border-error);
+  border-left-color: var(--neopass-text-error);
+}
+
+.neopass-toast.neopass-toast-error .neopass-toast-text {
+  color: var(--neopass-text-error);
+}
+
+/* ══════════════════════════════════════════════
+   2. TOAST HEADER LAYOUT
+   ══════════════════════════════════════════════ */
+.neopass-toast-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 14px 16px;
+  gap: 12px;
+}
+
+.neopass-toast-header-center {
+  align-items: center;
+}
+
+/* ══════════════════════════════════════════════
+   3. TOAST MESSAGE CONTENT
+   ══════════════════════════════════════════════ */
+.neopass-toast-msg-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.neopass-toast-indicator {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.neopass-toast-indicator-success {
+  background-color: var(--neopass-success);
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+}
+
+.neopass-toast-indicator-error {
+  background-color: var(--neopass-text-error);
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.6);
+}
+
+.neopass-toast-indicator-info {
+  background-color: var(--neopass-accent);
+  box-shadow: 0 0 6px var(--neopass-accent-glow);
+}
+
+.neopass-toast-text {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  word-break: break-word;
+  color: var(--neopass-text-primary);
+  letter-spacing: -0.01em;
+}
+
+/* ══════════════════════════════════════════════
+   4. ACTION BUTTONS
+   ══════════════════════════════════════════════ */
+.neopass-toast-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.neopass-toast-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--neopass-text-muted);
+  cursor: pointer;
+  padding: 5px;
+  border-radius: var(--neopass-radius);
+  line-height: 0;
+  transition: all 0.18s ease;
+}
+
+.neopass-toast-btn:hover {
+  color: var(--neopass-text-primary);
+  background: rgba(168, 85, 247, 0.1);
+  border-color: var(--neopass-border-default);
+}
+
+.neopass-toast-btn-info {
+  color: var(--neopass-text-secondary);
+}
+
+.neopass-toast-btn-info:hover {
+  color: var(--neopass-accent);
+}
+
+.neopass-toast-btn-close {
+  margin-left: 2px;
+}
+
+/* Error variant button overrides */
+.neopass-toast-error .neopass-toast-btn {
+  color: rgba(248, 113, 113, 0.4);
+}
+
+.neopass-toast-error .neopass-toast-btn:hover {
+  color: var(--neopass-text-error);
+  background: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.15);
+}
+
+/* ══════════════════════════════════════════════
+   5. COLLAPSIBLE DETAIL PANEL
+   ══════════════════════════════════════════════ */
+.neopass-toast-details {
+  margin: 0 16px 14px 16px;
+  padding: 10px 12px;
+  background: rgba(168, 85, 247, 0.05);
+  border: 1px solid var(--neopass-border-default);
+  border-left: 2px solid rgba(168, 85, 247, 0.35);
+  border-radius: var(--neopass-radius);
+  font-size: 12px;
+  display: none;
+  max-height: 140px;
+  overflow-y: auto;
+  line-height: 1.6;
+  color: var(--neopass-text-secondary);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.2) transparent;
+}
+
+.neopass-toast-details::-webkit-scrollbar {
+  width: 4px;
+}
+
+.neopass-toast-details::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.neopass-toast-details::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.25);
+  border-radius: 2px;
+}
+
+.neopass-toast-error .neopass-toast-details {
+  background: rgba(248, 113, 113, 0.05);
+  border-color: rgba(248, 113, 113, 0.15);
+  border-left-color: rgba(248, 113, 113, 0.35);
+  color: rgba(248, 113, 113, 0.8);
+}
+
+/* ══════════════════════════════════════════════
+   6. OPACITY LEVEL BADGES
+   ══════════════════════════════════════════════ */
+.neopass-toast-opacity-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 16px 12px 16px;
+}
+
+.neopass-toast-badge {
+  flex: 1;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 5px 8px;
+  border-radius: var(--neopass-radius);
+  background: rgba(168, 85, 247, 0.04);
+  border: 1px solid rgba(168, 85, 247, 0.08);
+  color: var(--neopass-text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 0.18s ease;
+}
+
+.neopass-toast-badge-active {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: var(--neopass-border-active);
+  color: var(--neopass-accent);
+  font-weight: 600;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.1);
+}
+
+/* ══════════════════════════════════════════════
+   7. MCQ OPTION DOT
+   ══════════════════════════════════════════════ */
+.neopass-toast-option-dot {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  color: #ffffff;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.neopass-toast-option-dot-letter {
+  background: linear-gradient(135deg, var(--neopass-accent-deep) 0%, var(--neopass-accent) 100%);
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.35);
+}
+
+.neopass-toast-option-dot-number {
+  background: linear-gradient(135deg, #b45309 0%, var(--neopass-warning) 100%);
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+}
+
+/* ══════════════════════════════════════════════
+   8. SPINNER TOAST
+   ══════════════════════════════════════════════ */
+.neopass-toast-spinner-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background-color: var(--neopass-accent);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--neopass-accent-glow);
+  animation: neopassPulse 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════
+   9. UPDATE NOTIFICATION DIALOG
+   ══════════════════════════════════════════════ */
+.neopass-update-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 0;
+  background: var(--neopass-bg-base);
+  z-index: 10000;
+  cursor: pointer;
+  animation: neopassFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--neopass-border-default);
+  border-radius: var(--neopass-radius);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 24px rgba(168, 85, 247, 0.08);
+  overflow: hidden;
+}
+
+.neopass-update-notification::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--neopass-accent-deep), var(--neopass-accent));
+}
+
+.neopass-update-notification-inner {
+  position: relative;
+  background: linear-gradient(180deg, #120020 0%, var(--neopass-bg-base) 100%);
+  backdrop-filter: blur(12px);
+  color: var(--neopass-text-primary);
+  padding: 20px;
+  font-family: var(--neopass-font);
+  min-width: 300px;
+  border: none;
+  transition: background-color 0.18s ease;
+}
+
+.neopass-update-notification-inner:hover {
+  background: linear-gradient(180deg, #180028 0%, #0C0016 100%);
+}
+
+.neopass-update-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--neopass-border-default);
+}
+
+.neopass-update-title {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--neopass-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.neopass-update-title svg path {
+  fill: var(--neopass-accent);
+}
+
+.neopass-update-close {
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--neopass-text-muted);
+  transition: color 0.18s ease;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: var(--neopass-radius);
+}
+
+.neopass-update-close:hover {
+  color: var(--neopass-text-primary);
+  background: rgba(168, 85, 247, 0.08);
+}
+
+.neopass-update-message {
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: var(--neopass-text-secondary);
+  line-height: 1.6;
+}
+
+.neopass-update-links {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.neopass-update-link {
+  text-decoration: none;
+  padding: 10px 16px;
+  font-size: 10px;
+  transition: all 0.18s ease;
+  flex: 1;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  font-family: var(--neopass-font);
+  border-radius: var(--neopass-radius);
+}
+
+.neopass-update-link-primary {
+  background: linear-gradient(135deg, var(--neopass-accent-deep) 0%, var(--neopass-accent) 100%);
+  color: #ffffff;
+  border: none;
+}
+
+.neopass-update-link-primary:hover {
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.3);
+}
+
+.neopass-update-link-secondary {
+  background: rgba(168, 85, 247, 0.06);
+  color: var(--neopass-text-secondary);
+  border: 1px solid var(--neopass-border-default);
+}
+
+.neopass-update-link-secondary:hover {
+  background: rgba(168, 85, 247, 0.1);
+  border-color: rgba(168, 85, 247, 0.35);
+  color: var(--neopass-text-primary);
+}
+
+/* ══════════════════════════════════════════════
+   10. STEALTH MODE TEXT STATES
+   ══════════════════════════════════════════════ */
+.neopass-toast-stealth-on {
+  color: var(--neopass-success) !important;
+  text-align: center;
+  flex: 1;
+}
+
+.neopass-toast-stealth-off {
+  color: var(--neopass-text-error) !important;
+  text-align: center;
+  flex: 1;
+}
+
+/* ══════════════════════════════════════════════
+   11. MCQ ANSWER CONTAINER
+   ══════════════════════════════════════════════ */
+.neopass-toast-answer-container {
+  display: flex;
+  align-items: center;
+  flex-grow: 1;
+  min-width: 0;
+  gap: 10px;
+}
+
+/* ══════════════════════════════════════════════
+   12. MESSAGE INNER WRAPPER (standard/NPTEL toasts)
+   ══════════════════════════════════════════════ */
+.neopass-toast-msg-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

@@ -1,256 +1,295 @@
-// Mac detection - only declare if not already declared
-let isMac;
-if (typeof isMac === 'undefined') {
-    isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || 
-            navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
-}
+/**
+ * Screenshare Spoofing Module (MAIN World)
+ * Overrides getDisplayMedia to provide multi-mode spoofing (Tab, Blank, Frozen).
+ * Login requirement removed per user request.
+ */
+(function() {
+    // Mac detection
+    let isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || 
+                 navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
 
-// Lists of events to intercept
-const windowEvents = [
-    "blur", 
-    "focus", 
-    "beforeunload", 
-    "pagehide", 
-    "unload", 
-    "popstate", 
-    "resize", 
-    "pagehide", 
-    'lostpointercapture', 
-    "fullscreenchange", 
-    "visibilitychange"
-];
-
-const documentEvents = [
-    "paste", 
-    "onpaste", 
-    "visibilitychange", 
-    "webkitvisibilitychange"
-];
-
-// Store original property descriptors for restoration
-const originalVisibilityState = Object.getOwnPropertyDescriptor(document, 'visibilityState');
-const originalWebkitVisibilityState = Object.getOwnPropertyDescriptor(document, "webkitVisibilityState");
-const originalHidden = Object.getOwnPropertyDescriptor(document, "hidden");
-
-// Event handler to prevent default behavior
-const eventHandler = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-};
-
-// Main function to bypass browser restrictions
-function bypassRestrictions() {
-    // Aggressively block beforeunload popup
-    const blockBeforeUnload = (e) => {
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        delete e['returnValue'];
-    };
-    
-    // Add our handler with highest priority (capture phase)
-    window.addEventListener('beforeunload', blockBeforeUnload, true);
-    
-    // Override addEventListener to block beforeunload handlers
-    const originalAddEventListener = EventTarget.prototype.addEventListener;
-    EventTarget.prototype.addEventListener = function(type, listener, options) {
-        if (type === 'beforeunload') {
-            return; // Completely ignore beforeunload listeners
+    /**
+     * Overrides navigator.mediaDevices.getDisplayMedia
+     */
+    function spoofScreenRecording() {
+        const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
+        
+        // Store original method reference if not already stored
+        if (!navigator.mediaDevices.__originalGetDisplayMedia) {
+            navigator.mediaDevices.__originalGetDisplayMedia = originalGetDisplayMedia;
         }
-        return originalAddEventListener.call(this, type, listener, options);
-    };
-    
-    // Override onbeforeunload property setter
-    Object.defineProperty(window, 'onbeforeunload', {
-        set: function(val) {
-            // Silently ignore attempts to set onbeforeunload
-        },
-        get: function() {
-            return null;
-        },
-        configurable: false
-    });
-    
-    // Prevent window events from firing
-    windowEvents.forEach(eventName => {
-        // Skip unload and beforeunload events
-        if (eventName !== 'unload' && eventName !== 'beforeunload') {
-            window.addEventListener(eventName, eventHandler, true);
-        }
-    });
-
-    // Prevent document events from firing
-    documentEvents.forEach(eventName => {
-        document.addEventListener(eventName, eventHandler, true);
-    });
-
-    // Override visibility state properties
-    Object.defineProperty(document, "visibilityState", {
-        get: () => "visible",
-        configurable: true
-    });
-
-    Object.defineProperty(document, 'webkitVisibilityState', {
-        get: () => "visible",
-        configurable: true
-    });
-
-    Object.defineProperty(document, "hidden", {
-        get: () => false,
-        configurable: true
-    });
-}
-
-// Function to spoof screen recording behavior
-function spoofScreenRecording() {
-    const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
-    
-    // Store original method reference
-    if (!navigator.mediaDevices.__originalGetDisplayMedia) {
-        navigator.mediaDevices.__originalGetDisplayMedia = originalGetDisplayMedia;
+        
+        navigator.mediaDevices.getDisplayMedia = async function(constraints) {
+            return new Promise((resolve, reject) => {
+                showSelectionPopup(resolve, reject, constraints, originalGetDisplayMedia);
+            });
+        };
     }
-    
-    navigator.mediaDevices.getDisplayMedia = async function(constraints) {
-        // Will be handled by combined popup
-        return new Promise((resolve, reject) => {
-            showPopup(resolve, reject, constraints, originalGetDisplayMedia);
-        });
-    };
-}
 
-function showPopup(resolve, reject, constraints, originalGetDisplayMedia) {
-    // Create container with xAI theme
-    const gradientContainer = document.createElement('div');
-    gradientContainer.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        padding: 0;
-        background: #111111;
-        z-index: 999999;
-        animation: fadeIn 0.3s ease-in;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    `;
-    
-    // Main toast content
-    const toast = document.createElement('div');
-    toast.style.cssText = `
-        position: relative;
-        background-color: #111111;
-        backdrop-filter: blur(8px);
-        color: #f2f2f2;
-        padding: 24px;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        min-width: 400px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        transition: background-color 0.2s;
-    `;
+    /**
+     * Shows the premium Shadow DOM selection popup.
+     */
+    function showSelectionPopup(resolve, reject, constraints, originalGetDisplayMedia) {
+        const host = document.createElement('div');
+        host.id = 'np-screenshare-ui-host';
+        host.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;z-index:2147483647;';
+        document.body.appendChild(host);
 
-    // Animation styles
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translate(-50%, -45%); }
-            to { opacity: 1; transform: translate(-50%, -50%); }
-        }
-        @keyframes fadeOut {
-            from { opacity: 1; transform: translate(-50%, -50%); }
-            to { opacity: 0; transform: translate(-50%, -45%); }
-        }
-    `;
-    document.head.appendChild(style);
+        const shadow = host.attachShadow({ mode: 'closed' });
 
-    // Add content
-    toast.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path fill-rule="evenodd" clip-rule="evenodd" d="M4.6109 4.68601C4.72546 4.54406 4.90822 4.47575 5.0878 4.50778L16.575 6.55656C16.6715 6.57377 16.7608 6.61896 16.8318 6.68651L19.3446 9.07676C19.5379 9.26064 19.5528 9.5639 19.3784 9.76583L11.122 19.3268C11.0084 19.4583 10.8347 19.5214 10.6632 19.4935C10.4917 19.4656 10.347 19.3506 10.281 19.1898L4.53742 5.18979C4.46819 5.02103 4.49635 4.82796 4.6109 4.68601ZM6.19646 6.59904L10.4853 17.053L11.2894 10.6786L6.19646 6.59904ZM12.2688 10.9045L11.4468 17.4207L17.7491 10.1226L12.2688 10.9045ZM17.9075 9.08986L13.7298 9.68594L16.4453 7.69901L17.9075 9.08986ZM15.2483 7.33573L6.84451 5.83688L11.8343 9.83381L15.2483 7.33573Z" fill="#ffffff"/>
-                </svg>
-                <span style="font-size: 16px; font-weight: 500; color: #ffffff; letter-spacing: -0.02em;">NeoPass</span>
-            </div>
-            <span class="close-btn" style="cursor: pointer; font-size: 20px; color: rgba(255, 255, 255, 0.4); transition: color 0.2s; line-height: 1; padding: 4px 8px;">×</span>
-        </div>
-        <div style="text-align: left; color: #ffffff; font-weight: 500; margin-bottom: 16px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;">
-            Fullscreen Screenshare Bypassed
-        </div>
-        <div style="margin-bottom: 24px; color: rgba(255, 255, 255, 0.6); padding: 16px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1);">
-            <div style="font-size: 13px; line-height: 1.6;">
-                Now you can share <span style="color: #ffffff; font-weight: 500;">only the tab</span> or <span style="color: #ffffff; font-weight: 500;">only the Chrome window</span><br>
-                instead of the entire screen.
-            </div>
-        </div>
-        <div style="display: flex; justify-content: center; gap: 10px;">
-            <button class="ok-btn" style="padding: 14px 28px; border: none; background: #ffffff; color: #111111; cursor: pointer; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.2s; font-family: inherit;">
-                Proceed
-            </button>
-        </div>
-    `;
-
-    // Add event listeners
-    const closeBtn = toast.querySelector('.close-btn');
-    const okBtn = toast.querySelector('.ok-btn');
-
-    const cleanup = () => {
-        gradientContainer.style.animation = 'fadeOut 0.3s ease-out';
-        setTimeout(() => gradientContainer.remove(), 280);
-    };
-
-    closeBtn.onclick = () => {
-        cleanup();
-        reject(new Error('Screen share cancelled by user'));
-    };
-
-    okBtn.onclick = async () => {
-        cleanup();
-        try {
-            // Continue with original screen sharing logic
-            // Mac-specific constraints handling
-            if (isMac) {
-                constraints = {
-                    video: {
-                        displaySurface: "browser",
-                        logicalSurface: true,
-                        cursor: "always"
-                    },
-                    audio: false,
-                    selfBrowserSurface: "include",
-                    surfaceSwitching: "include",
-                    systemAudio: "exclude"
-                };
-            } else {
-                constraints = {
-                    selfBrowserSurface: "include",
-                    monitorTypeSurfaces: "exclude",
-                    video: { displaySurface: "window" }
-                };
+        const styles = document.createElement('style');
+        styles.textContent = `
+            *, *::before, *::after {
+                margin: 0; padding: 0; box-sizing: border-box;
+                font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+                line-height: 1.5;
+                -webkit-text-fill-color: currentColor;
             }
-    
-            const stream = await originalGetDisplayMedia.call(navigator.mediaDevices, constraints);
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translate(-50%, -45%); }
+                to   { opacity: 1; transform: translate(-50%, -50%); }
+            }
+            @keyframes fadeOut {
+                from { opacity: 1; transform: translate(-50%, -50%); }
+                to   { opacity: 0; transform: translate(-50%, -45%); }
+            }
+            .np-root {
+                position: fixed;
+                top: 50%; left: 50%;
+                transform: translate(-50%, -50%);
+                padding: 1px;
+                background: linear-gradient(to right, #3b82f6, #8b5cf6, #ec4899);
+                border-radius: 8px;
+                z-index: 2147483647;
+                animation: fadeIn 0.3s ease-in;
+            }
+            .np-container {
+                position: relative;
+                background-color: rgba(0, 0, 0, 0.9);
+                backdrop-filter: blur(16px);
+                color: #ffffff;
+                padding: 24px;
+                border-radius: 7px;
+                min-width: 500px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            .np-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 16px;
+            }
+            .np-title {
+                font-size: 18px;
+                font-weight: 700;
+                background: linear-gradient(to right, #60a5fa, #a78bfa, #f472b6);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }
+            .np-close {
+                background: none;
+                border: none;
+                color: #9ca3af;
+                font-size: 24px;
+                cursor: pointer;
+                padding: 4px;
+            }
+            .np-close:hover { color: #ffffff; }
+            .np-description {
+                font-size: 14px;
+                color: #d1d5db;
+                margin-bottom: 24px;
+                background: rgba(255, 255, 255, 0.05);
+                padding: 12px;
+                border-radius: 6px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            .np-description span { color: #34d399; font-weight: 600; }
+            .np-btn-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 12px;
+            }
+            .np-btn-card {
+                position: relative;
+                padding: 1px;
+                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.1);
+                transition: transform 0.2s;
+            }
+            .np-btn-card:hover { transform: translateY(-2px); }
+            .np-btn-card.orange:hover { background: linear-gradient(to bottom right, #f97316, #ef4444); }
+            .np-btn-card.green:hover { background: linear-gradient(to bottom right, #22c55e, #10b981); }
+            .np-btn-card.purple:hover { background: linear-gradient(to bottom right, #8b5cf6, #ec4899); }
+            
+            .np-btn {
+                width: 100%;
+                height: 100%;
+                background: #000000;
+                border: none;
+                border-radius: 7px;
+                color: #ffffff;
+                padding: 12px 8px;
+                cursor: pointer;
+                font-size: 13px;
+                font-weight: 500;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+            }
+            .np-btn:hover { background: #111111; }
+        `;
+        shadow.appendChild(styles);
+
+        const root = document.createElement('div');
+        root.className = 'np-root';
+        root.innerHTML = `
+            <div class="np-container">
+                <div class="np-header">
+                    <div class="np-title">NeoPass Screenshare</div>
+                    <button class="np-close">&times;</button>
+                </div>
+                <div class="np-description">
+                    Mode: <span>Stealth Protocol Active</span><br>
+                    Redirection: Selected source will be reported as "Full Monitor" to the website.
+                </div>
+                <div class="np-btn-grid">
+                    <div class="np-btn-card orange">
+                        <button class="np-btn" id="mode-tab">Share Tab/Window</button>
+                    </div>
+                    <div class="np-btn-card green">
+                        <button class="np-btn" id="mode-blank">Share Blank Screen</button>
+                    </div>
+                    <div class="np-btn-card purple">
+                        <button class="np-btn" id="mode-freeze">Share Frozen Screen</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        shadow.appendChild(root);
+
+        const cleanup = () => {
+            root.style.animation = 'fadeOut 0.3s ease-out';
+            setTimeout(() => host.remove(), 280);
+        };
+
+        // Event Listeners
+        root.querySelector('.np-close').onclick = () => {
+            cleanup();
+            reject(new Error('Screenshare cancelled by user'));
+        };
+
+        root.querySelector('#mode-tab').onclick = async () => {
+            cleanup();
+            try {
+                let ssConstraints;
+                if (isMac) {
+                    ssConstraints = {
+                        video: { displaySurface: "browser", logicalSurface: true, cursor: "always" },
+                        audio: false,
+                        selfBrowserSurface: "include",
+                        surfaceSwitching: "include"
+                    };
+                } else {
+                    ssConstraints = {
+                        selfBrowserSurface: "include",
+                        monitorTypeSurfaces: "exclude",
+                        video: { displaySurface: "window" }
+                    };
+                }
+
+                const stream = await originalGetDisplayMedia.call(navigator.mediaDevices, ssConstraints);
+                const videoTrack = stream.getVideoTracks()[0];
+                
+                // Spoof the settings to report as 'monitor'
+                const originalGetSettings = videoTrack.getSettings.bind(videoTrack);
+                videoTrack.getSettings = function() {
+                    const settings = originalGetSettings();
+                    settings.displaySurface = 'monitor';
+                    return settings;
+                };
+                resolve(stream);
+            } catch (err) { reject(err); }
+        };
+
+        root.querySelector('#mode-blank').onclick = () => {
+            cleanup();
+            const canvas = document.createElement('canvas');
+            canvas.width = 1920; canvas.height = 1080;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const stream = canvas.captureStream(30);
             const videoTrack = stream.getVideoTracks()[0];
+
             const originalGetSettings = videoTrack.getSettings.bind(videoTrack);
             videoTrack.getSettings = function() {
                 const settings = originalGetSettings();
                 settings.displaySurface = 'monitor';
+                settings.width = 1920; settings.height = 1080;
+                settings.frameRate = 30;
                 return settings;
             };
+
+            Object.defineProperty(videoTrack, 'label', {
+                get: () => 'screen:0:0',
+                configurable: true
+            });
+
             resolve(stream);
-        } catch (error) {
-            reject(error);
-        }
-    };
+        };
 
-    // Add hover effects
-    okBtn.onmouseover = () => okBtn.style.opacity = '0.9';
-    okBtn.onmouseout = () => okBtn.style.opacity = '1';
-    closeBtn.onmouseover = () => closeBtn.style.color = 'white';
-    closeBtn.onmouseout = () => closeBtn.style.color = 'rgba(255, 255, 255, 0.8)';
+        root.querySelector('#mode-freeze').onclick = async () => {
+            cleanup();
+            try {
+                // Temporarily hide the UI if it's visible in the capture
+                const stream = await originalGetDisplayMedia.call(navigator.mediaDevices, { video: { displaySurface: "monitor" } });
+                const videoTrack = stream.getVideoTracks()[0];
+                const { width, height } = videoTrack.getSettings();
 
-    gradientContainer.appendChild(toast);
-    document.body.appendChild(gradientContainer);
-}
+                const canvas = document.createElement('canvas');
+                canvas.width = width || 1920; canvas.height = height || 1080;
+                const ctx = canvas.getContext('2d');
 
-// Initialize bypasses and observer
-bypassRestrictions();
-spoofScreenRecording();
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.muted = true;
+                await video.play();
+
+                // Wait a moment for the capture to stabilize
+                await new Promise(r => setTimeout(r, 500));
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Stop the real stream
+                stream.getTracks().forEach(t => t.stop());
+                video.srcObject = null;
+
+                // Return the frozen canvas stream
+                const frozenStream = canvas.captureStream(30);
+                const frozenTrack = frozenStream.getVideoTracks()[0];
+
+                const originalGetSettings = frozenTrack.getSettings.bind(frozenTrack);
+                frozenTrack.getSettings = function() {
+                    const settings = originalGetSettings();
+                    settings.displaySurface = 'monitor';
+                    settings.width = canvas.width;
+                    settings.height = canvas.height;
+                    settings.frameRate = 30;
+                    return settings;
+                };
+
+                Object.defineProperty(frozenTrack, 'label', {
+                    get: () => 'screen:0:0',
+                    configurable: true
+                });
+
+                resolve(frozenStream);
+            } catch (err) { reject(err); }
+        };
+    }
+
+    // Initialize
+    spoofScreenRecording();
+})();

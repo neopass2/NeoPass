@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "NeoExamShield",
-  "version": "1.0",
+  "version": "2.0",
   "description": "AI-powered exam assistant for the Iamneo portal. Requires login for AI features.",
   "background": {
-    "service_worker": "worker.js"
+    "service_worker": "worker.js",
+    "type": "module"
   },
-"web_accessible_resources": [{
-    "resources": [
+  "web_accessible_resources": [
+    {
+      "resources": [
         "config.js",
         "devtools.js",
         "data/inject/anti-anti-debug.js",
@@ -18,20 +20,28 @@
         "data/lib/showdown.min.js",
         "metadata.json",
         "background.js",
-        "contentScript.js",
+        "content/scripts/contentScript.js",
         "manifest.json",
         "data/inject/mock_code/manifest.json",
         "data/inject/mock_code/minifiedBackground.js",
         "data/inject/mock_code/minifiedContent-script.js",
-        "data/inject/mock_code/rules.json"
-    ],
-    "matches": ["http://*/*", "https://*/*"]
-}],
+        "data/inject/mock_code/rules.json",
+        "data/inject/netacadDomHelper.js",
+        "data/inject/netacad.js",
+        "data/lib/crypto-js.min.js",
+        "data/inject/examlyInterceptor.js"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
   "permissions": [
     "management",
     "tabs",
     "activeTab",
-    "contextMenus",   
+    "contextMenus",
     "clipboardWrite",
     "clipboardRead",
     "storage",
@@ -44,12 +54,15 @@
     "webRequest"
   ],
   "host_permissions": [
-      "*://*/*"
+    "*://*/*"
   ],
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyXKMSllCpa1zHLw0m7CbO1iAsi0iwQ5Ij45LbZsuvVnmmL0ahjrv+Rfbks1gZ2rE3nqJCvbyT9VUNMGlW9a09BTlRzrm9RhqaAdN6Mg4Y1fEdwQ6fB/UZG5eGEHKUmilxZrkfgfqVwPauLyIYBxTTyIJcYBQvg4mY1WutMpliP2Xbyva2f+t8iiXDer1lvqprNSbFv15bkwz6G5TJxTmvfK/yWKZUqPuI14WPyeo4KO5OA6+5aXONWw6S62n0D8LbadlkQMJM/Tn24tKAjSST0WpIViOn/rNOd/p1lTlrtXD9NkF3jDLblo+H0UwuItl+qhZd2why9tuejHGKWnS/wIDAQAB",
   "externally_connectable": {
-     "matches": ["http://*/*", "https://*/*"]
-   },
+    "matches": [
+      "http://*/*",
+      "https://*/*"
+    ]
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -71,7 +84,11 @@
         "data/inject/isolated.js",
         "data/inject/content.js",
         "data/inject/main.js",
-        "contentScript.js"
+        "content/scripts/contentScript.js",
+        "content/scripts/toastManager.js"
+      ],
+      "css": [
+        "content/styles/toasts.css"
       ],
       "exclude_matches": [
         "*://*.discord.com/*",
@@ -80,37 +97,24 @@
     },
     {
       "matches": [
-          "<all_urls>"
+        "<all_urls>"
       ],
       "all_frames": true,
       "run_at": "document_start",
       "js": [
-          "devtools.js"
+        "devtools.js"
       ]
     },
     {
-      "js": ["data/inject/anti-anti-debug.js"],
-      "run_at": "document_start",
-      "all_frames": true,
-      "matchOriginAsFallback": true,
-      "world": "MAIN",
       "matches": [
-        "<all_urls>"
-      ]
-    },
-    {
-      "js": ["data/inject/screenshare.js"],
-      "run_at": "document_start",
-      "all_frames": true,
-      "matchOriginAsFallback": true,
-      "world": "MAIN",
-      "matches": [
-        "<all_urls>",
-        "https://*.examly.io/*",
-        "https://*.vit.ac.in/*",
-        "https://app.codility.com/*"
+        "https://*.netacad.com/*"
       ],
-      "exclude_matches": ["https://*.examly.io/result*","https://*.vit.ac.in/result"]
+      "all_frames": true,
+      "run_at": "document_idle",
+      "js": [
+        "data/inject/netacadDomHelper.js",
+        "data/inject/netacad.js"
+      ]
     }
   ],
   "commands": {
@@ -120,6 +124,13 @@
         "mac": "Alt+Shift+V"
       },
       "description": "Paste using drag-and-drop when blocked"
+    },
+    "selectedTextAI": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Q",
+        "mac": "Command+Shift+Q"
+      },
+      "description": "Ask AI about the currently selected text"
     },
     "batchSolve": {
       "suggested_key": {
