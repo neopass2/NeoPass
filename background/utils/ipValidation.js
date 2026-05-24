@@ -8,10 +8,12 @@ const getIPs = async () => {
     try {
         const response = await fetch(chrome.runtime.getURL("metadata.json"));
         const data = await response.json();
-        return data.ip || [];
+        allowedIPs = Array.isArray(data.ip) ? data.ip : [];
+        return allowedIPs;
     } catch (error) {
         console.error("Failed to load metadata:", error);
-        return [];
+        allowedIPs = [];
+        return allowedIPs;
     }
 };
 

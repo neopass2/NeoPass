@@ -9,7 +9,7 @@ async function loadNptelDataset() {
     try {
         const response = await fetch(chrome.runtime.getURL('data/nptel.json'));
         dataset = await response.json();
-        console.log(`NPTEL dataset loaded: ${dataset.length} questions`);
+        // console.log(`NPTEL dataset loaded: ${dataset.length} questions`);
     } catch (error) {
         console.error('Failed to load NPTEL dataset:', error);
     }

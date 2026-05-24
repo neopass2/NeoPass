@@ -25,11 +25,9 @@ if (typeof chrome === "undefined") {
   const mockScript = document.createElement('script');
   mockScript.src = chrome.runtime.getURL('data/inject/mock_code.js');
   mockScript.onload = function () {
-      console.log('✅ Mock code interceptor loaded');
       this.remove(); // Clean up after execution
   };
   mockScript.onerror = function() {
-      console.error('❌ Failed to load mock code interceptor');
   };
   // Inject as early as possible
   (document.head || document.documentElement).prepend(mockScript);

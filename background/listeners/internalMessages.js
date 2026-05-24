@@ -13,6 +13,7 @@ import { showOpacityLevelToast } from '../ui/toasts.js';
 import { handleMessage } from './externalMessages.js';
 import { checkAndHandleSessionExpiration } from '../session/expiration.js';
 import { handleSelectedTextAI } from '../features/ai/selectedText.js';
+import { logInterceptionRequest } from '../api/requestLogger.js';
 
 // Configuration for Examly Interception
 const CONSUME_CREDITS_ON_INTERCEPT = false;
@@ -138,43 +139,139 @@ function registerInternalMessageListeners() {
                     if (cachedData && cachedData.ready) {
                         let interceptedResponse = null;
 
-                        if (request.questionIndex !== undefined && request.questionIndex !== null) {
-                            if (request.isCoding) {
-                                if (cachedData.coding[request.questionIndex]) {
-                                    interceptedResponse = cachedData.coding[request.questionIndex].solution;
-                                }
-                            } else {
-                                if (cachedData.mcqs[request.questionIndex]) {
-                                    const match = cachedData.mcqs[request.questionIndex];
-                                    interceptedResponse = {
-                                        answer: `Option ${match.answerIndex + 1}`,
-                                        index: match.answerIndex,
-                                        text: match.text
-                                    };
+                        // Helper: Find the correct DOM option index by matching answer text against DOM options
+                        // DOM options format: "Option 1: text\nOption 2: text\n..."
+                        function findDomOptionIndex(answerText, domOptionsStr) {
+                            if (!answerText || !domOptionsStr) return -1;
+                            const cleanAnswer = cleanHtmlText(answerText).toLowerCase();
+                            const lines = domOptionsStr.split('\n').filter(l => l.trim());
+                            for (let i = 0; i < lines.length; i++) {
+                                // Strip "Option N: " prefix to get pure option text
+                                const optTextRaw = lines[i].replace(/^Option \d+:\s*/i, '').trim();
+                                const cleanOpt = cleanHtmlText(optTextRaw).toLowerCase();
+                                if (cleanOpt === cleanAnswer || 
+                                    cleanOpt.includes(cleanAnswer) || 
+                                    cleanAnswer.includes(cleanOpt)) {
+                                    return i; // 0-based DOM index
                                 }
                             }
+                            return -1;
                         }
 
-                        // Fallback to text matching if index lookup failed or wasn't provided
-                        if (!interceptedResponse) {
+                        // Helper: Decode HTML entities and clean text for accurate matching
+                        function cleanHtmlText(html) {
+                            if (!html) return '';
+                            return html.replace(/<[^>]*>?/gm, '') // remove tags
+                                       .replace(/&nbsp;/g, ' ')
+                                       .replace(/&amp;/g, '&')
+                                       .replace(/&lt;/g, '<')
+                                       .replace(/&gt;/g, '>')
+                                       .replace(/&quot;/g, '"')
+                                       .replace(/&#39;/g, "'")
+                                       .replace(/&rsquo;/g, "'")
+                                       .replace(/&lsquo;/g, "'")
+                                       .replace(/\s+/g, ' ')
+                                       .trim();
+                        }
+
+                        if (request.questionIndex !== undefined && request.questionIndex !== null) {
+                            const reqQText = cleanHtmlText(request.question);
+                            
                             if (request.isCoding) {
-                                const match = cachedData.coding.find(c => 
-                                    request.question.includes(c.questionText) || 
-                                    (c.questionText && c.questionText.includes(request.question))
-                                );
-                                if (match) interceptedResponse = match.solution;
+                                let bestMatch = null;
+                                let bestScore = -1;
+                                
+                                for (let c of cachedData.coding) {
+                                    let score = 0;
+                                    if (c.sectionRelativeIndex === request.questionIndex) score += 5;
+                                    
+                                    const cQText = cleanHtmlText(c.questionText);
+                                    if (cQText && reqQText && (cQText.includes(reqQText) || reqQText.includes(cQText))) {
+                                        score += 10;
+                                    }
+                                    
+                                    if (score > bestScore && score > 0) {
+                                        bestScore = score;
+                                        bestMatch = c;
+                                    }
+                                }
+                                
+                                if (bestMatch) {
+                                    if (bestMatch.rawProgrammingQuestion) {
+                                        const raw = bestMatch.rawProgrammingQuestion;
+                                        
+                                        // Override the scraped data with the clean intercepted metadata
+                                        if (raw.question_data) {
+                                            request.question = cleanHtmlText(raw.question_data);
+                                            // Include constraints if available
+                                            if (raw.code_constraints) {
+                                                request.question += '\n\nConstraints:\n' + cleanHtmlText(raw.code_constraints);
+                                            }
+                                        }
+                                        
+                                        if (raw.input_format) request.inputFormat = cleanHtmlText(raw.input_format);
+                                        if (raw.output_format) request.outputFormat = cleanHtmlText(raw.output_format);
+                                        
+                                        // Format sample test cases
+                                        if (raw.sample_io) {
+                                            let sampleIO = raw.sample_io;
+                                            try { if (typeof sampleIO === 'string') sampleIO = JSON.parse(sampleIO); } catch(e){}
+                                            
+                                            if (Array.isArray(sampleIO) && sampleIO.length > 0) {
+                                                let enhancedTestCases = '';
+                                                sampleIO.forEach((tc, idx) => {
+                                                    enhancedTestCases += `Sample Test Case ${idx + 1}:\nInput:\n${tc.input}\nOutput:\n${tc.output}\n\n`;
+                                                });
+                                                request.testCases = enhancedTestCases;
+                                            }
+                                        }
+                                    }
+                                    
+                                    interceptedResponse = null; 
+                                }
                             } else {
-                                const match = cachedData.mcqs.find(m => 
-                                    (m.questionText && request.question.includes(m.questionText)) || 
-                                    (m.questionText && m.questionText.includes(request.question)) ||
-                                    (request.options && request.options.includes(m.text))
-                                );
-                                if (match) {
-                                    interceptedResponse = {
-                                        answer: `Option ${match.answerIndex + 1}`,
-                                        index: match.answerIndex,
-                                        text: match.text
-                                    };
+                                let bestMatch = null;
+                                let bestScore = -1;
+                                const domOptionsStr = request.options || '';
+                                const domOptionsCleaned = domOptionsStr.split('\n').map(opt => cleanHtmlText(opt).toLowerCase());
+                                
+                                for (let m of cachedData.mcqs) {
+                                    let score = 0;
+                                    if (m.sectionRelativeIndex === request.questionIndex) score += 5;
+                                    
+                                    const mQText = cleanHtmlText(m.questionText);
+                                    if (mQText && reqQText && (mQText.includes(reqQText) || reqQText.includes(mQText))) {
+                                        score += 10;
+                                    }
+                                    
+                                    if (m.optionTexts && m.optionTexts.length > 0) {
+                                        let optMatchCount = 0;
+                                        for (let opt of m.optionTexts) {
+                                            let cleanOpt = cleanHtmlText(opt).toLowerCase();
+                                            if (cleanOpt && domOptionsCleaned.some(dOpt => dOpt.includes(cleanOpt) || cleanOpt.includes(dOpt))) {
+                                                optMatchCount++;
+                                            }
+                                        }
+                                        score += (optMatchCount * 3);
+                                    }
+                                    
+                                    if (score > bestScore && score > 0) {
+                                        bestScore = score;
+                                        bestMatch = m;
+                                    }
+                                }
+                                
+                                if (bestMatch) {
+                                    const answerDisplayText = bestMatch.text || '';
+                                    const domIndex = findDomOptionIndex(answerDisplayText, domOptionsStr);
+                                    
+                                    if (domIndex !== -1) {
+                                        interceptedResponse = {
+                                            answer: `Option ${domIndex + 1}`,
+                                            index: domIndex,
+                                            text: answerDisplayText
+                                        };
+                                    }
                                 }
                             }
                         }
@@ -187,6 +284,16 @@ function registerInternalMessageListeners() {
                                 const finalResponse = typeof interceptedResponse === 'string' ? interceptedResponse : interceptedResponse.answer;
                                 handleQueryResponseForIamNeoExamly(finalResponse, sender.tab.id, request.isMCQ, request.isHackerRank, request.isMultipleChoice, request.isTyped, true);
                                 sendResponse({ success: true, response: finalResponse, status: 'success', isIntercepted: true });
+
+                                // Log interception event (fire-and-forget)
+                                const meta = request._neopassMeta || {};
+                                logInterceptionRequest({
+                                    trigger: meta.trigger || 'unknown',
+                                    platform: meta.platform || 'examly',
+                                    category: request.isCoding ? 'coding' : 'mcq',
+                                    questionCount: 1
+                                });
+
                                 return;
                             }
                         }
@@ -211,7 +318,8 @@ function registerInternalMessageListeners() {
                             `${request.question.trim()}\nOptions:\n${request.options.trim()}`;
                     }
                     const requestType = request.isCoding ? 'coding' : (request.isMCQ ? 'mcq' : 'general');
-                    const response = await queryRequest(queryText, request.isMCQ, request.isMultipleChoice, sender.tab.id, requestType, 1);
+                    const meta = request._neopassMeta || null;
+                    const response = await queryRequest(queryText, request.isMCQ, request.isMultipleChoice, sender.tab.id, requestType, 1, 0, meta);
                     if (response && typeof response === 'string') {
                         handleQueryResponseForIamNeoExamly(response, sender.tab.id, request.isMCQ, request.isHackerRank, request.isMultipleChoice, request.isTyped);
                         sendResponse({ success: true, response, status: 'success' });
@@ -285,7 +393,8 @@ function registerInternalMessageListeners() {
             return true;
         }
         if (message.action === 'solveSelectedText') {
-            handleSelectedTextAI(message.text, sender.tab.id);
+            const meta = message._neopassMeta || { trigger: 'ctrl-q', platform: 'generic' };
+            handleSelectedTextAI(message.text, sender.tab.id, meta);
             return true;
         }
         return false;
@@ -302,6 +411,40 @@ function registerInternalMessageListeners() {
         if (message.action === 'resetContext') {
             console.log('Chat context reset requested from tab:', sender.tab?.id);
             if (sendResponse) sendResponse({ success: true, message: 'Context reset' });
+            return true;
+        }
+        return false;
+    });
+
+    // Logging for interception requests
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.action === 'logNetacadBatch') {
+            const count = message.count || 1;
+            logInterceptionRequest({
+                trigger: 'netacad',
+                platform: 'netacad',
+                category: 'mcq',
+                questionCount: count
+            });
+            return true;
+        }
+        if (message.action === 'incrementNetacadSolve') {
+            logInterceptionRequest({
+                trigger: 'netacad',
+                platform: 'netacad',
+                category: 'mcq',
+                questionCount: 1
+            });
+            return true;
+        }
+        if (message.action === 'logBatchInterception') {
+            const count = message.count || 1;
+            logInterceptionRequest({
+                trigger: 'alt-shift-q',
+                platform: 'examly',
+                category: 'mcq-batch',
+                questionCount: count
+            });
             return true;
         }
         return false;

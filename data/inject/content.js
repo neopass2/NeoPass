@@ -2,6 +2,98 @@ window.addEventListener('blur', function () {
     window.focus();
 });
 
+// ============================================
+// CONTEXT INVALIDATION DETECTION
+// ============================================
+let _neopassContextInvalidated = false;
+
+function showContextInvalidatedToast() {
+    if (document.getElementById('neopass-context-invalidated-toast')) return;
+
+    const existingUpdate = document.getElementById('neopass-update-notification');
+    if (existingUpdate) existingUpdate.remove();
+
+    const gradientContainer = document.createElement('div');
+    gradientContainer.className = 'neopass-update-notification';
+    gradientContainer.id = 'neopass-context-invalidated-toast';
+    gradientContainer.style.cursor = 'default';
+    
+    const toast = document.createElement('div');
+    toast.className = 'neopass-update-notification-inner';
+    
+    const header = document.createElement('div');
+    header.className = 'neopass-update-header';
+    
+    const title = document.createElement('div');
+    title.className = 'neopass-update-title';
+    title.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:8px;color:#A855F7"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg><span style="vertical-align:middle">Connection Lost</span>';
+    
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'neopass-update-close';
+    closeBtn.innerHTML = '&times;';
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'neopass-update-message';
+    messageDiv.innerHTML = 'NeoPass disconnected.<br>Extension was updated or reloaded. Please refresh this page to reconnect.';
+    
+    const linksContainer = document.createElement('div');
+    linksContainer.className = 'neopass-update-links';
+    
+    const refreshBtn = document.createElement('a');
+    refreshBtn.href = '#';
+    refreshBtn.innerHTML = 'Refresh Page';
+    refreshBtn.className = 'neopass-update-link neopass-update-link-primary';
+    refreshBtn.onclick = (e) => {
+        e.preventDefault();
+        location.reload();
+    };
+    
+    closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        gradientContainer.style.animation = 'neopassFadeOut 0.3s ease-out';
+        setTimeout(() => gradientContainer.remove(), 280);
+    };
+    
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    linksContainer.appendChild(refreshBtn);
+    toast.appendChild(header);
+    toast.appendChild(messageDiv);
+    toast.appendChild(linksContainer);
+    gradientContainer.appendChild(toast);
+    
+    document.body.appendChild(gradientContainer);
+}
+
+// Wrap chrome.runtime.sendMessage to detect context invalidation
+const _originalSendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
+chrome.runtime.sendMessage = function (message, callback) {
+    if (_neopassContextInvalidated) {
+        showContextInvalidatedToast();
+        return;
+    }
+    try {
+        _originalSendMessage(message, (response) => {
+            if (chrome.runtime.lastError) {
+                const errMsg = chrome.runtime.lastError.message || '';
+                if (errMsg.includes('Extension context invalidated') ||
+                    errMsg.includes('Cannot access') ||
+                    errMsg.includes('message port closed')) {
+                    _neopassContextInvalidated = true;
+                    showContextInvalidatedToast();
+                }
+            }
+            if (callback) callback(response);
+        });
+    } catch (e) {
+        if (e.message && (e.message.includes('Extension context invalidated') ||
+            e.message.includes('Cannot access'))) {
+            _neopassContextInvalidated = true;
+            showContextInvalidatedToast();
+        }
+    }
+};
+
 // Declare shared isMac variable (this will be the first to run)
 window.isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 ||
     navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
@@ -216,7 +308,8 @@ async function handleQuestionExtraction() {
         code: code,
         options: options,
         isMCQ: true,
-        questionIndex: getExamlyQuestionIndex()
+        questionIndex: getExamlyQuestionIndex(),
+        _neopassMeta: { trigger: 'alt-shift-a', platform: 'examly' }
     });
 }
 
@@ -243,7 +336,6 @@ function extractCodingQuestion(isTyped = false) {
     let containers = document.querySelectorAll('div[aria-labelledby="each-tc-card"]');
 
     if (containers.length > 0) {
-        console.log('[Test Cases] Method 1: Found', containers.length, 'test case containers');
         containers.forEach((container) => {
             const inputPre = container.querySelector('div[aria-labelledby="each-tc-input-container"] pre');
             const outputPre = container.querySelector('div[aria-labelledby="each-tc-output-container"] pre');
@@ -259,11 +351,9 @@ function extractCodingQuestion(isTyped = false) {
 
     // Try Method 2: Find by aria-labelledby="each-tc-container"
     if (testCases.length === 0) {
-        console.log('[Test Cases] Method 1 failed. Trying Method 2...');
         containers = document.querySelectorAll('[aria-labelledby="each-tc-container"]');
 
         if (containers.length > 0) {
-            console.log('[Test Cases] Method 2: Found', containers.length, 'test case containers');
             containers.forEach((container) => {
                 const inputPre = container.querySelector('[aria-labelledby="each-tc-input"]');
                 const outputPre = container.querySelector('[aria-labelledby="each-tc-output"]');
@@ -280,7 +370,6 @@ function extractCodingQuestion(isTyped = false) {
 
     // Try Method 3: Find pre elements with Input/Output labels
     if (testCases.length === 0) {
-        console.log('[Test Cases] Method 2 failed. Trying Method 3...');
         const allPres = document.querySelectorAll('pre');
         const inputs = [];
         const outputs = [];
@@ -299,8 +388,6 @@ function extractCodingQuestion(isTyped = false) {
             }
         });
 
-        console.log('[Test Cases] Method 3: Found', inputs.length, 'inputs and', outputs.length, 'outputs');
-
         // Pair inputs and outputs
         for (let i = 0; i < Math.min(inputs.length, outputs.length); i++) {
             testCases.push({
@@ -315,9 +402,7 @@ function extractCodingQuestion(isTyped = false) {
         testCases.forEach((testCase, index) => {
             testCasesText += `Sample Test Case ${index + 1}:\nInput:\n${testCase.input}\nOutput:\n${testCase.output}\n\n`;
         });
-        console.log('[Test Cases] Successfully extracted', testCases.length, 'test cases');
     } else {
-        console.warn('[Test Cases] All methods failed. No test cases extracted.');
         testCasesText = 'No test cases found. Please check the page structure.';
     }
 
@@ -368,12 +453,28 @@ function extractCodingQuestion(isTyped = false) {
         whitelist: whitelistText,
         isCoding: true,
         isTyped: isTyped,
-        questionIndex: getExamlyQuestionIndex()
+        questionIndex: getExamlyQuestionIndex(),
+        _neopassMeta: { trigger: isTyped ? 'alt-shift-t' : 'alt-shift-a', platform: 'examly' }
     }, async (response) => {
         if (response && response.success && response.response) {
             const qNum = getExamlyQuestionIndex() + 1 || "";
             const color = response.isIntercepted ? '#4CAF50' : '#2196F3';
             console.log(`%cQuestion ${qNum} solved`, `color: ${color}; font-weight: bold;`);
+
+            if (isTyped) {
+                try {
+                    let cleanedResponse = response.response.trim()
+                        .replace(/^```[a-z]*\n/, '')
+                        .replace(/\n```$/, '');
+
+                    window.dispatchEvent(new CustomEvent('NEOPASS_INSERT_CODE_TYPED', {
+                        detail: { code: cleanedResponse }
+                    }));
+                    console.log('[content.js] Dispatched NEOPASS_INSERT_CODE_TYPED from extractCodingQuestion');
+                } catch (e) {
+                    console.error('[content.js] Error dispatching typed code:', e);
+                }
+            }
         }
     });
 }
@@ -396,35 +497,13 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-// Alt+Shift+T: Typed code insertion
-let _typedFetchQuestion = null;
-document.addEventListener('keydown', (event) => {
-    const modifierKey = event.altKey;
 
-    if (modifierKey && event.shiftKey && event.code === 'KeyT') {
-        // Only fetch if this is a coding question
-        const codingQuestionElement = document.querySelector('div[aria-labelledby="input-format"]');
-        if (!codingQuestionElement) return;
-
-        // Get current question number to avoid re-fetching
-        const qEl = document.querySelector('div[class*="t-bg-primary"]');
-        const qMatch = qEl && qEl.textContent.match(/Question No : (\d+)/);
-        const qNum = qMatch ? qMatch[1] : null;
-
-        if (qNum && _typedFetchQuestion === qNum) {
-            return;
-        }
-        _typedFetchQuestion = qNum;
-
-        extractCodingQuestion(true); // isTyped = true
-    }
-});
 
 // Alt+Shift+H: HackerRank solve
 document.addEventListener('keydown', (event) => {
     const modifierKey = event.altKey;
     if (modifierKey && event.shiftKey && event.code === 'KeyH') {
-        handleHackerRankMCQ();
+        handleHackerRankMCQ('alt-shift-h');
     }
 });
 
@@ -437,7 +516,7 @@ document.addEventListener('keydown', (event) => {
         const selectedText = window.getSelection().toString().trim();
         if (selectedText) {
             event.preventDefault();
-            chrome.runtime.sendMessage({ action: 'solveSelectedText', text: selectedText });
+            chrome.runtime.sendMessage({ action: 'solveSelectedText', text: selectedText, _neopassMeta: { trigger: 'ctrl-q', platform: 'generic' } });
         } else {
             // Fallback: Try to solve based on platform detection
             const currentUrl = window.location.href;
@@ -446,7 +525,7 @@ document.addEventListener('keydown', (event) => {
                 solveIamneoExamly();
             } else if (currentUrl.includes('hackerrank.com')) {
                 event.preventDefault();
-                handleHackerRankMCQ();
+                handleHackerRankMCQ('ctrl-q');
             } else {
                 // Generic detection could go here, but for now we notify
                 chrome.runtime.sendMessage({ action: 'showToast', message: 'No text selected. Select the question text and press Ctrl+Q.', isError: true });
@@ -502,7 +581,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'clickMCQOption') {
         const qNum = getExamlyQuestionIndex() + 1 || "";
         const color = request.isIntercepted ? '#4CAF50' : '#2196F3';
-        console.log(`%cQuestion ${qNum} solved`, `color: ${color}; font-weight: bold;`);
+        console.log(`%cQuestion ${qNum} solved → "${request.response}"`, `color: ${color}; font-weight: bold;`);
 
         (async () => {
             try {
@@ -1107,7 +1186,7 @@ async function insertCodeIntoMonacoEditor(text) {
 }
 
 // Function to handle HackerRank extraction (both MCQ and coding, updated for new layout)
-function handleHackerRankMCQ() {
+function handleHackerRankMCQ(triggerSource = 'ctrl-q') {
     // Check if it's a coding question first (Monaco editor present)
     const monacoEditor = document.querySelector('.monaco-editor, .hr-monaco-editor');
 
@@ -1159,7 +1238,8 @@ ${codingData.starterCode}
             outputFormat: '',
             testCases: '',
             isHackerRank: true,
-            isCoding: true
+            isCoding: true,
+            _neopassMeta: { trigger: triggerSource, platform: 'hackerrank' }
         }, async (response) => {
 
             if (response && response.success && response.response) {
@@ -1266,7 +1346,8 @@ ${codingData.starterCode}
             options: optionsText,
             isHackerRank: true,
             isMCQ: true,
-            isMultipleChoice: isMultipleChoice  // Add flag for multiple choice questions
+            isMultipleChoice: isMultipleChoice,  // Add flag for multiple choice questions
+            _neopassMeta: { trigger: triggerSource, platform: 'hackerrank' }
         }, (response) => {
         });
     } else {
@@ -1280,35 +1361,8 @@ ${codingData.starterCode}
 
 // Listen for code request from exam.js (Alt+Shift+T)
 window.addEventListener('NEOPASS_REQUEST_CODE_TYPED', function (event) {
-    const { programmingLanguage, question, inputFormat, outputFormat, testCases } = event.detail;
-
-    // Send data to background.js for querying
-    chrome.runtime.sendMessage({
-        action: 'extractData',
-        programmingLanguage: programmingLanguage,
-        question: question,
-        inputFormat: inputFormat,
-        outputFormat: outputFormat,
-        testCases: testCases,
-        isCoding: true,
-        questionIndex: getExamlyQuestionIndex()
-    }, async (response) => {
-        if (response && response.success && response.response) {
-            try {
-                // Clean the response
-                let cleanedResponse = response.response.trim()
-                    .replace(/^```[a-z]*\n/, '')
-                    .replace(/\n```$/, '');
-
-                // Dispatch custom event back to exam.js with the typed code
-                window.dispatchEvent(new CustomEvent('NEOPASS_INSERT_CODE_TYPED', {
-                    detail: { code: cleanedResponse }
-                }));
-
-            } catch (error) {
-            }
-        }
-    });
+    console.log('[content.js] Received NEOPASS_REQUEST_CODE_TYPED event from exam.js');
+    extractCodingQuestion(true); // isTyped = true
 });
 
 // ============================================
@@ -1497,7 +1551,7 @@ async function startBatchSolveWorkflow() {
 
         chrome.runtime.sendMessage({
             action: 'showSpinnerToast',
-            message: 'Fetching answers from AI...'
+            message: 'Executing Batch Solve'
         });
 
         // 1. Check for local intercepted data first (Bypass AI completely)
@@ -1509,18 +1563,105 @@ async function startBatchSolveWorkflow() {
             const interceptedData = interceptedDataResponse.data;
 
             if (interceptedData.mcqs.length > 0 || interceptedData.coding.length > 0) {
-                const answers = interceptedData.mcqs.map((m, index) => ({
-                    id: index + 1,
-                    answer: m.text
-                }));
+                // Scrape all questions in the current section
+                const scrapedQuestions = await scrapeAll();
+                const validatedAnswers = [];
+                let skippedCount = 0;
 
-                await markAnswers(answers, true);
-                chrome.runtime.sendMessage({
-                    action: 'showToast',
-                    message: `Instant batch solve complete`,
-                    isError: false
-                });
-                return { success: true, message: 'Instant batch solve complete' };
+                // Helper: Decode HTML entities and clean text for accurate matching
+                function cleanHtmlText(html) {
+                    if (!html) return '';
+                    return html.replace(/<[^>]*>?/gm, '') // remove tags
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/&amp;/g, '&')
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/&quot;/g, '"')
+                        .replace(/&#39;/g, "'")
+                        .replace(/&rsquo;/g, "'")
+                        .replace(/&lsquo;/g, "'")
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                }
+
+                for (const scraped of scrapedQuestions) {
+                    let bestMatch = null;
+                    let bestScore = -1;
+
+                    const scrapedQText = cleanHtmlText(scraped.text);
+                    const scrapedOptionsStr = scraped.options.join('\n');
+                    const scrapedOptionsCleaned = scraped.options.map(opt => cleanHtmlText(opt).toLowerCase());
+
+                    for (let m of interceptedData.mcqs) {
+                        let score = 0;
+                        if (m.sectionRelativeIndex === (scraped.id - 1)) score += 5; // scraped.id is 1-based
+
+                        const mQText = cleanHtmlText(m.questionText);
+                        if (mQText && scrapedQText && (mQText.includes(scrapedQText) || scrapedQText.includes(mQText))) {
+                            score += 10;
+                        }
+
+                        if (m.optionTexts && m.optionTexts.length > 0) {
+                            let optMatchCount = 0;
+                            for (let opt of m.optionTexts) {
+                                let cleanOpt = cleanHtmlText(opt).toLowerCase();
+                                if (cleanOpt && scrapedOptionsCleaned.some(dOpt => dOpt.includes(cleanOpt) || cleanOpt.includes(dOpt))) {
+                                    optMatchCount++;
+                                }
+                            }
+                            score += (optMatchCount * 3);
+                        }
+
+                        if (score > bestScore && score > 0) {
+                            bestScore = score;
+                            bestMatch = m;
+                        }
+                    }
+
+                    if (bestMatch && bestScore >= 5) {
+                        const answerText = bestMatch.text || '';
+                        const cleanAnswer = cleanHtmlText(answerText).toLowerCase();
+                        let domIndex = -1;
+                        for (let i = 0; i < scraped.options.length; i++) {
+                            const optText = scraped.options[i].trim();
+                            const cleanOptText = cleanHtmlText(optText).toLowerCase();
+                            if (cleanOptText === cleanAnswer || cleanOptText.includes(cleanAnswer) || cleanAnswer.includes(cleanOptText)) {
+                                domIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (domIndex !== -1) {
+                            validatedAnswers.push({ id: scraped.id, answer: `Option ${domIndex + 1}` });
+                        } else {
+                            skippedCount++;
+                        }
+                    } else {
+                        skippedCount++;
+                    }
+                }
+
+                if (validatedAnswers.length > 0) {
+                    await markAnswers(validatedAnswers, true);
+                    const msg = skippedCount > 0
+                        ? `Batch solve: ${validatedAnswers.length} marked, ${skippedCount} skipped (mismatch)`
+                        : `Instant batch solve complete`;
+                    chrome.runtime.sendMessage({
+                        action: 'showToast',
+                        message: msg,
+                        isError: false
+                    });
+                    
+                    // Log the successful batch interception to the backend
+                    chrome.runtime.sendMessage({
+                        action: 'logBatchInterception',
+                        count: validatedAnswers.length
+                    });
+
+                    return { success: true, message: msg };
+                } else {
+                    // Fall through to AI batch solve below
+                }
             }
         }
 
@@ -1592,3 +1733,5 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true; // Keep message channel open for async response
     }
 });
+
+

@@ -3,10 +3,19 @@
 import { CONFIG } from '../config.js';
 import { getTokens, refreshAccessToken } from '../api/auth.js';
 import { makeAuthenticatedRequest } from '../api/request.js';
+import { canMakeRequest, blockRequests, unblockRequests } from '../state/requestGate.js';
 
 function registerBatchSolveListener() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.action === "batchSolve") {
+            if (!canMakeRequest()) {
+                console.log('[Batch Solve Worker] Blocked - another request is in progress');
+                sendResponse({ success: false, error: 'Please wait for your previous request to complete.' });
+                return true;
+            }
+            
+            blockRequests();
+            
             (async () => {
                 try {
                     const questions = message.questions;
@@ -24,12 +33,12 @@ function registerBatchSolveListener() {
                     const API_URL = `${CONFIG.BACKEND_BASE_URL}${CONFIG.ENDPOINTS.MCQ_TEXT}`;
                     const questionCount = questions.length;
                     const batchTimeout = CONFIG.BATCH_SOLVE_TIMEOUT || 120000;
-                    let response = await makeAuthenticatedRequest(API_URL, 'POST', accessToken, { prompt, questionCount }, batchTimeout);
+                    let response = await makeAuthenticatedRequest(API_URL, 'POST', accessToken, { prompt, questionCount, triggerSource: 'alt-shift-q', platform: 'examly' }, batchTimeout);
                     if (!response.ok && (response.status === 401 || response.status === 403)) {
                         const newAccessToken = await refreshAccessToken(refreshToken);
                         if (newAccessToken === 'network_error') throw new Error('Network error. Please check your connection and try again.');
                         if (!newAccessToken) { chrome.storage.local.remove(['accessToken', 'refreshToken', 'loggedIn']); throw new Error('Session expired. Please log in again.'); }
-                        response = await makeAuthenticatedRequest(API_URL, 'POST', newAccessToken, { prompt, questionCount }, batchTimeout);
+                        response = await makeAuthenticatedRequest(API_URL, 'POST', newAccessToken, { prompt, questionCount, triggerSource: 'alt-shift-q', platform: 'examly' }, batchTimeout);
                     }
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({}));
@@ -51,6 +60,8 @@ function registerBatchSolveListener() {
                 } catch (error) {
                     console.error('[Batch Solve Worker] Error:', error);
                     sendResponse({ success: false, error: error.message || 'Unknown error occurred' });
+                } finally {
+                    unblockRequests();
                 }
             })();
             return true;

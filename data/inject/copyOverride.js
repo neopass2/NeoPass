@@ -2,6 +2,25 @@
 (function() {
     'use strict';
 
+    // ------- Domain whitelist: only enable copy override on target sites -------
+    const __NEOPASS_ALLOWED_HOSTS = [
+        'iamneo',    // iamneo sites
+        'examly',    // examly sites
+        'netacad.com' // Cisco Netacad helper (existing behavior)
+    ];
+
+    function __isNeopassAllowedHost() {
+        try {
+            const host = window.location.hostname || '';
+            return __NEOPASS_ALLOWED_HOSTS.some(p => host.includes(p));
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // If not running on a whitelisted site, bail out silently to avoid interfering
+    if (!__isNeopassAllowedHost()) return;
+
     // Create an invisible textarea for our controlled copy operations
     const invisibleTextarea = document.createElement('textarea');
     invisibleTextarea.id = 'neopass-invisible-copy';
@@ -24,19 +43,15 @@
     // Override navigator.clipboard.writeText to use our custom copy AND store in clipboard
     const originalWriteText = navigator.clipboard.writeText;
     navigator.clipboard.writeText = async function(text) {
-        console.log('[CopyOverride] Intercepted clipboard writeText:', text.substring(0, 100));
         window.neoPassClipboard = text; // Store for later paste
         
         try {
             // Try to use the original writeText first for compatibility
             await originalWriteText.call(navigator.clipboard, text);
-            console.log('[CopyOverride] Successfully wrote to native clipboard');
         } catch (err) {
-            console.log('[CopyOverride] Native clipboard write failed, using custom copy:', err);
             await customCopy(text);
         }
         
-        console.log('[CopyOverride] Stored in neoPassClipboard, length:', text.length);
         return Promise.resolve();
     };
 
@@ -46,7 +61,6 @@
         if (command === 'copy') {
             const activeElement = document.activeElement;
             if (activeElement !== invisibleTextarea) {
-                console.log('Intercepted execCommand copy, using custom copy');
                 const text = activeElement.value || activeElement.textContent;
                 if (text) {
                     return customCopy(text);
@@ -65,12 +79,9 @@
             // Store in our global clipboard variable
             window.neoPassClipboard = selectedText;
             
-            // Try to write to native clipboard first
             try {
                 await originalWriteText.call(navigator.clipboard, selectedText);
-                console.log('[CopyOverride] Wrote to native clipboard via writeText');
             } catch (clipErr) {
-                console.log('[CopyOverride] writeText failed, using execCommand:', clipErr);
             }
             
             invisibleTextarea.value = selectedText;
@@ -78,7 +89,6 @@
             invisibleTextarea.setSelectionRange(0, selectedText.length);
 
             const success = originalExecCommand.call(document, 'copy');
-            console.log('Text copied using invisible textarea:', success, 'Stored in neoPassClipboard');
             
             // Clear the textarea
             invisibleTextarea.value = '';
@@ -86,7 +96,6 @@
             
             return success;
         } catch (err) {
-            console.error('Copy using invisible textarea failed:', err);
             return false;
         }
     }
@@ -103,7 +112,6 @@
     document.addEventListener('copy', function(event) {
         // Only allow copy from our invisible textarea
         if (event.target !== invisibleTextarea && document.activeElement !== invisibleTextarea) {
-            console.log('Blocking default copy event from:', event.target);
             event.preventDefault();
             event.stopImmediatePropagation();
         }
@@ -126,17 +134,10 @@
                     // Perform custom copy
                     const success = await customCopy(selectedText);
                     
-                    console.log('Custom copy executed:', {
-                        success,
-                        textLength: selectedText.length,
-                        preview: selectedText.substring(0, 40) + (selectedText.length > 40 ? '...' : '')
-                    });
-                    
                     // Clear selection after copy
                     window.getSelection().removeAllRanges();
                     
                 } catch (error) {
-                    console.error('Error in custom copy handler:', error);
                 }
             }
         }
@@ -153,9 +154,7 @@
 
     // Log clipboard status for debugging
     window.getNeoPassClipboard = function() {
-        console.log('[CopyOverride] Current neoPassClipboard:', window.neoPassClipboard);
         return window.neoPassClipboard;
     };
 
-    console.log('Custom copy prevention initialized - default copy blocked on all elements');
 })();

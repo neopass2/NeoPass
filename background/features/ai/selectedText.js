@@ -21,7 +21,7 @@ function isRetriableSelectedTextError(response) {
     return response.errorType === 'network' || response.errorType === 'server' || response.errorType === 'general';
 }
 
-async function handleSelectedTextAI(selectedText, tabId) {
+async function handleSelectedTextAI(selectedText, tabId, _neopassMeta = null) {
     const cleanedText = (selectedText || '').trim();
     if (!cleanedText) {
         showToast(tabId, 'No text selected', true);
@@ -40,11 +40,11 @@ async function handleSelectedTextAI(selectedText, tabId) {
         cleanedText
     ].join('\n');
 
-    let response = await queryRequest(prompt, false, false, tabId, 'general', 1);
+    let response = await queryRequest(prompt, false, false, tabId, 'general', 1, 0, _neopassMeta);
 
     if (isRetriableSelectedTextError(response)) {
         await new Promise(resolve => setTimeout(resolve, 800));
-        response = await queryRequest(prompt, false, false, tabId, 'general', 1);
+        response = await queryRequest(prompt, false, false, tabId, 'general', 1, 0, _neopassMeta);
     }
 
     if (typeof response === 'string') {

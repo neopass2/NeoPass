@@ -12,17 +12,27 @@ function registerShortcutListener() {
         shortcutStates[command] = true;
         (async () => {
             try {
-                // Enforce login for all shortcuts
-                const loginStatus = await new Promise(resolve => chrome.runtime.sendMessage({ action: 'checkLoginStatus' }, resp => resolve(resp && resp.loggedIn)));
-                if (!loginStatus) {
-                    // Prompt login and abort shortcut
-                    chrome.runtime.sendMessage({ action: 'showLoginPrompt' });
-                    shortcutStates[command] = false;
-                    return;
-                }
+                // Enforce login for all shortcuts - check local storage directly
+                const loginStatus = await new Promise(resolve => {
+                    chrome.storage.local.get(["loggedIn"], function(result) {
+                        resolve(result.loggedIn === true);
+                    });
+                });
 
                 const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 if (!activeTab || !activeTab.id) return;
+
+                if (!loginStatus) {
+                    // Prompt login and abort shortcut
+                    showToast(activeTab.id, 'Please log in to use this feature.', true);
+                    try {
+                        chrome.action.openPopup();
+                    } catch (e) {
+                        console.log('Could not open popup automatically:', e.message);
+                    }
+                    shortcutStates[command] = false;
+                    return;
+                }
 
                 if (command === 'customPaste') {
                     await chrome.scripting.executeScript({
@@ -62,7 +72,7 @@ function registerShortcutListener() {
                     });
                     const selectedText = results?.[0]?.result || '';
                     if (!selectedText) { showToast(activeTab.id, 'No text selected', true); return; }
-                    await handleSelectedTextAI(selectedText, activeTab.id);
+                    await handleSelectedTextAI(selectedText, activeTab.id, { trigger: 'ctrl-shift-q', platform: 'generic' });
                 }
             } catch (error) {
                 console.error(`Shortcut handler failed for ${command}:`, error);

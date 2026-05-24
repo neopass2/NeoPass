@@ -445,7 +445,7 @@ function showUpdateToast(msg, version) {
     
     const title = document.createElement('div');
     title.className = 'neopass-update-title';
-    title.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:8px"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.6109 4.68601C4.72546 4.54406 4.90822 4.47575 5.0878 4.50778L16.575 6.55656C16.6715 6.57377 16.7608 6.61896 16.8318 6.68651L19.3446 9.07676C19.5379 9.26064 19.5528 9.5639 19.3784 9.76583L11.122 19.3268C11.0084 19.4583 10.8347 19.5214 10.6632 19.4935C10.4917 19.4656 10.347 19.3506 10.281 19.1898L4.53742 5.18979C4.46819 5.02103 4.49635 4.82796 4.6109 4.68601ZM6.19646 6.59904L10.4853 17.053L11.2894 10.6786L6.19646 6.59904ZM12.2688 10.9045L11.4468 17.4207L17.7491 10.1226L12.2688 10.9045ZM17.9075 9.08986L13.7298 9.68594L16.4453 7.69901L17.9075 9.08986ZM15.2483 7.33573L6.84451 5.83688L11.8343 9.83381L15.2483 7.33573Z" fill="#ffffff"/></svg><span style="vertical-align:middle">NeoPass</span>';
+    title.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:8px"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.6109 4.68601C4.72546 4.54406 4.90822 4.47575 5.0878 4.50778L16.575 6.55656C16.6715 6.57377 16.7608 6.61896 16.8318 6.68651L19.3446 9.07676C19.5379 9.26064 19.5528 9.5639 19.3784 9.76583L11.122 19.3268C11.0084 19.4583 10.8347 19.5214 10.6632 19.4935C10.4917 19.4656 10.347 19.3506 10.281 19.1898L4.53742 5.18979C4.46819 5.02103 4.49635 4.82796 4.6109 4.68601ZM6.19646 6.59904L10.4853 17.053L11.2894 10.6786L6.19646 6.59904ZM12.2688 10.9045L11.4468 17.4207L17.7491 10.1226L12.2688 10.9045ZM17.9075 9.08986L13.7298 9.68594L16.4453 7.69901L17.9075 9.08986ZM15.2483 7.33573L6.84451 5.83688L11.8343 9.83381L15.2483 7.33573Z" fill="#A855F7"/></svg><span style="vertical-align:middle;color:#A855F7;font-weight:700">NeoPass Update</span>';
     
     const closeBtn = document.createElement('span');
     closeBtn.className = 'neopass-update-close';
@@ -567,3 +567,78 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 });
+
+// Context invalidation detection for toast manager
+// Periodically check if the extension context is still valid
+(function detectContextInvalidation() {
+    let checkInterval = setInterval(() => {
+        try {
+            // Attempt a lightweight operation that requires valid context
+            if (!chrome.runtime || !chrome.runtime.id) {
+                clearInterval(checkInterval);
+                showContextInvalidatedToastFromToastManager();
+            }
+        } catch (e) {
+            clearInterval(checkInterval);
+            showContextInvalidatedToastFromToastManager();
+        }
+    }, 5000); // Check every 5 seconds
+
+    function showContextInvalidatedToastFromToastManager() {
+        if (document.getElementById('neopass-context-invalidated-toast')) return;
+        
+        const existingUpdate = document.getElementById('neopass-update-notification');
+        if (existingUpdate) existingUpdate.remove();
+        
+        const gradientContainer = document.createElement('div');
+        gradientContainer.className = 'neopass-update-notification';
+        gradientContainer.id = 'neopass-context-invalidated-toast';
+        gradientContainer.style.cursor = 'default';
+        
+        const toast = document.createElement('div');
+        toast.className = 'neopass-update-notification-inner';
+        
+        const header = document.createElement('div');
+        header.className = 'neopass-update-header';
+        
+        const title = document.createElement('div');
+        title.className = 'neopass-update-title';
+        title.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:8px;color:#A855F7"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg><span style="vertical-align:middle;color:#A855F7;font-weight:700">Connection Lost</span>';
+        
+        const closeBtn = document.createElement('span');
+        closeBtn.className = 'neopass-update-close';
+        closeBtn.innerHTML = '&times;';
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'neopass-update-message';
+        messageDiv.innerHTML = 'NeoPass disconnected.<br>Extension was updated or reloaded. Please refresh this page to reconnect.';
+        
+        const linksContainer = document.createElement('div');
+        linksContainer.className = 'neopass-update-links';
+        
+        const refreshBtn = document.createElement('a');
+        refreshBtn.href = '#';
+        refreshBtn.innerHTML = 'Refresh Page';
+        refreshBtn.className = 'neopass-update-link neopass-update-link-primary';
+        refreshBtn.onclick = (e) => {
+            e.preventDefault();
+            location.reload();
+        };
+        
+        closeBtn.onclick = (e) => {
+            e.stopPropagation();
+            gradientContainer.style.animation = 'neopassFadeOut 0.3s ease-out';
+            setTimeout(() => gradientContainer.remove(), 280);
+        };
+        
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+        linksContainer.appendChild(refreshBtn);
+        toast.appendChild(header);
+        toast.appendChild(messageDiv);
+        toast.appendChild(linksContainer);
+        gradientContainer.appendChild(toast);
+        
+        document.body.prepend(gradientContainer);
+    }
+})();

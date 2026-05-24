@@ -2,7 +2,7 @@
  * NeoPass Examly Interceptor
  * Intercepts and decrypts Examly test data to provide 100% accurate answers.
  */
-(function() {
+(function () {
     const INTERCEPT_URLS = [
         'https://api.examly.io/api/sEKMRyOJKjIzZbUa',
         'https://api.examly.io/api/9DECJfxqhu0cgJAQ',
@@ -25,14 +25,14 @@
     const originalXHR = window.XMLHttpRequest;
     function NeoXHR() {
         const xhr = new originalXHR();
-        xhr.addEventListener('readystatechange', function() {
+        xhr.addEventListener('readystatechange', function () {
             if (xhr.readyState === 4) {
                 try {
                     const url = xhr.responseURL;
                     if (INTERCEPT_URLS.some(target => url.includes(target))) {
                         processInterceptedData(xhr.responseText);
                     }
-                } catch (e) {}
+                } catch (e) { }
             }
         }, false);
         return xhr;
@@ -64,46 +64,79 @@
             window.__NEOPASS_EXAMLY_DATA__.mcqs = [];
             window.__NEOPASS_EXAMLY_DATA__.coding = [];
 
+            // Track the absolute question index (across all sections) for accurate mapping
+            let absoluteQuestionIndex = 0;
+            
+
+
+            
             testData.forEach(section => {
+                let sectionRelativeIndex = 0;
                 section.questions.forEach(q => {
+                    const currentAbsIndex = absoluteQuestionIndex;
+                    absoluteQuestionIndex++;
+                    const currentRelIndex = sectionRelativeIndex;
+                    sectionRelativeIndex++;
+
                     // Extract MCQ Answers
                     if (q.mcq_questions) {
                         const actualAnswer = q.mcq_questions.actual_answer.args[0];
-                        
+
                         // Try matching by text
                         let optionIndex = q.options.findIndex(opt => opt.text === actualAnswer);
-                        
+                        let matchedByText = optionIndex !== -1;
+
                         // Fallback: Try matching by ID
                         if (optionIndex === -1) {
                             optionIndex = q.options.findIndex(opt => opt.id === actualAnswer);
                         }
-                        
+
                         const questionText = q.question_text || q.text || "";
-                        
+                        const optionTexts = q.options.map(o => o.text || o.id || '');
+
+                        // Resolve the display text: if matched by ID, use the option's display text
+                        // This is critical because the actual DOM may show text, not IDs
+                        const answerDisplayText = optionIndex !== -1
+                            ? (q.options[optionIndex].text || q.options[optionIndex].id || actualAnswer)
+                            : actualAnswer;
+
+
+
                         if (optionIndex !== -1) {
                             window.__NEOPASS_EXAMLY_DATA__.mcqs.push({
                                 questionId: q.id,
+                                absoluteIndex: currentAbsIndex,
+                                sectionRelativeIndex: currentRelIndex,
                                 answerIndex: optionIndex,
-                                text: actualAnswer,
-                                questionText: questionText
+                                text: answerDisplayText,
+                                questionText: questionText,
+                                optionTexts: optionTexts
                             });
                         }
                     }
                     // Extract Coding Solutions
                     if (q.programming_question) {
-                        const solution = q.programming_question.solution[0]?.solutiondata[0]?.solution;
+                        const solution = q.programming_question.solution?.[0]?.solutiondata?.[0]?.solution;
                         const questionText = q.question_text || q.text || "";
-                        
+
+
+
                         if (solution) {
                             window.__NEOPASS_EXAMLY_DATA__.coding.push({
                                 questionId: q.id,
+                                absoluteIndex: currentAbsIndex,
+                                sectionRelativeIndex: currentRelIndex,
                                 solution: solution,
-                                questionText: questionText
+                                questionText: questionText,
+                                rawProgrammingQuestion: q.programming_question // Pass the raw data for potential fallback
                             });
+
+
                         }
                     }
                 });
             });
+
 
             window.__NEOPASS_EXAMLY_DATA__.ready = true;
 

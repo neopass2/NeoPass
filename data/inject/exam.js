@@ -256,7 +256,6 @@ if (typeof window.isMac === 'undefined') {
                     let containers = document.querySelectorAll('div[aria-labelledby="each-tc-card"]');
                     
                     if (containers.length > 0) {
-                        console.log('[Test Cases] Method 1: Found', containers.length, 'test case containers');
                         containers.forEach((container) => {
                             const inputPre = container.querySelector('div[aria-labelledby="each-tc-input-container"] pre');
                             const outputPre = container.querySelector('div[aria-labelledby="each-tc-output-container"] pre');
@@ -272,11 +271,9 @@ if (typeof window.isMac === 'undefined') {
                     
                     // Try Method 2: Find by aria-labelledby="each-tc-container"
                     if (testCases.length === 0) {
-                        console.log('[Test Cases] Method 1 failed. Trying Method 2...');
                         containers = document.querySelectorAll('[aria-labelledby="each-tc-container"]');
                         
                         if (containers.length > 0) {
-                            console.log('[Test Cases] Method 2: Found', containers.length, 'test case containers');
                             containers.forEach((container) => {
                                 const inputPre = container.querySelector('[aria-labelledby="each-tc-input"]');
                                 const outputPre = container.querySelector('[aria-labelledby="each-tc-output"]');
@@ -293,7 +290,6 @@ if (typeof window.isMac === 'undefined') {
                     
                     // Try Method 3: Find pre elements with Input/Output labels
                     if (testCases.length === 0) {
-                        console.log('[Test Cases] Method 2 failed. Trying Method 3...');
                         const allPres = document.querySelectorAll('pre');
                         const inputs = [];
                         const outputs = [];
@@ -312,8 +308,6 @@ if (typeof window.isMac === 'undefined') {
                             }
                         });
                         
-                        console.log('[Test Cases] Method 3: Found', inputs.length, 'inputs and', outputs.length, 'outputs');
-                        
                         // Pair inputs and outputs
                         for (let i = 0; i < Math.min(inputs.length, outputs.length); i++) {
                             testCases.push({
@@ -329,9 +323,7 @@ if (typeof window.isMac === 'undefined') {
                         testCases.forEach((testCase, index) => {
                             testCasesText += `Sample Test Case ${index + 1}:\nInput:\n${testCase.input}\nOutput:\n${testCase.output}\n\n`;
                         });
-                        console.log('[Test Cases] Successfully extracted', testCases.length, 'test cases');
                     } else {
-                        console.warn('[Test Cases] All methods failed. No test cases extracted.');
                         testCasesText = 'No test cases found. Please check the page structure.';
                     }
 

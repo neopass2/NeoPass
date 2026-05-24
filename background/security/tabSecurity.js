@@ -19,6 +19,10 @@ async function validateOpenTabs() {
                 const isExamPortal = hostname.includes('examly') || hostname.includes('iamneo') || hostname.includes('vit.ac.in');
                 
                 if (isExamPortal) {
+                    if (allowedIPs.length === 0) {
+                        // If IP allowlist failed to load, avoid reload loops
+                        continue;
+                    }
                     if (!ip || !allowedIPs.includes(ip)) {
                         console.warn(`[TabSecurity] Unauthorized IP detected for ${hostname}. Reloading tab.`);
                         chrome.tabs.reload(tab.id, () => {

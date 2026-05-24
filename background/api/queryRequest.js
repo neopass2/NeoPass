@@ -12,7 +12,7 @@ import { showMCQToast } from '../ui/specializedToasts.js';
 // - String: successful response text
 // - Object: { error: string, errorType: string, detailedInfo: string }
 // requestType: 'mcq', 'coding', or 'general' (default)
-async function queryRequest(text, isMCQ = false, isMultipleChoice = false, tabId = null, requestType = 'general', questionCount = 1, retryCount = 0) {
+async function queryRequest(text, isMCQ = false, isMultipleChoice = false, tabId = null, requestType = 'general', questionCount = 1, retryCount = 0, _neopassMeta = null) {
     // Check if a request is already in progress
     if (!canMakeRequest()) {
         console.log('[Request Block] Request blocked - another request is in progress');
@@ -69,7 +69,10 @@ async function queryRequest(text, isMCQ = false, isMultipleChoice = false, tabId
         const API_URL = `${CONFIG.BACKEND_BASE_URL}${endpoint}`;
         const body = {
             prompt: text,
-            questionCount: questionCount // For MCQ, this is the number of questions; for coding, it's always 1
+            questionCount: questionCount, // For MCQ, this is the number of questions; for coding, it's always 1
+            // Classification metadata (optional, for analytics)
+            triggerSource: _neopassMeta?.trigger || null,
+            platform: _neopassMeta?.platform || null
         };
 
         if (isMCQ) {
@@ -109,7 +112,7 @@ async function queryRequest(text, isMCQ = false, isMultipleChoice = false, tabId
                     const delayMs = 1000 * (retryCount + 1);
                     console.log(`[queryRequest] Server error ${response.status}, retrying in ${delayMs}ms (${retryCount + 1}/2)...`);
                     await new Promise(resolve => setTimeout(resolve, delayMs));
-                    return queryRequest(text, isMCQ, isMultipleChoice, tabId, requestType, questionCount, retryCount + 1);
+                    return queryRequest(text, isMCQ, isMultipleChoice, tabId, requestType, questionCount, retryCount + 1, _neopassMeta);
                 }
 
                 let errorMessage = 'An unexpected error occurred. Please try again.';
@@ -289,20 +292,9 @@ function handleQueryResponseForIamNeoExamly(response, tabId, isMCQ = false, isHa
             copyToClipboard(cleanedCode);
 
             if (isTyped) {
-                // Typed mode: call _neopassStartTyping (defined in exam.js)
-                chrome.scripting.executeScript({
-                    target: { tabId: tabId },
-                    func: function(code) {
-                        console.log('[NeoPass] Starting typed injection...');
-                        if (typeof window._neopassStartTyping === 'function') {
-                            window._neopassStartTyping(code);
-                        } else {
-                            console.error('[NeoPass] _neopassStartTyping not found');
-                        }
-                    },
-                    args: [cleanedCode],
-                    world: 'MAIN'
-                }).catch(err => console.error('Typed injection failed:', err));
+                // Typed mode: Injection is handled via custom events in content.js and exam.js.
+                // We do not inject anything from the service worker to prevent duplicate inputs.
+                console.log('[NeoPass] Service worker: Typed mode response generated, passing back to content script.');
             } else {
                 // Instant mode: inject directly into Ace editor
                 chrome.scripting.executeScript({

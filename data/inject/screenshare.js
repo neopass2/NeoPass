@@ -39,9 +39,10 @@
 
         const styles = document.createElement('style');
         styles.textContent = `
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
             *, *::before, *::after {
                 margin: 0; padding: 0; box-sizing: border-box;
-                font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+                font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
                 line-height: 1.5;
                 -webkit-text-fill-color: currentColor;
             }
@@ -53,92 +54,140 @@
                 from { opacity: 1; transform: translate(-50%, -50%); }
                 to   { opacity: 0; transform: translate(-50%, -45%); }
             }
+            @keyframes accentPulse {
+                0%, 100% { box-shadow: 0 0 20px rgba(168, 85, 247, 0.08); }
+                50% { box-shadow: 0 0 30px rgba(168, 85, 247, 0.15); }
+            }
             .np-root {
                 position: fixed;
                 top: 50%; left: 50%;
                 transform: translate(-50%, -50%);
-                padding: 1px;
-                background: linear-gradient(to right, #3b82f6, #8b5cf6, #ec4899);
-                border-radius: 8px;
+                border-radius: 3px;
                 z-index: 2147483647;
-                animation: fadeIn 0.3s ease-in;
+                animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 12px 48px rgba(0, 0, 0, 0.65), 0 0 24px rgba(168, 85, 247, 0.1);
             }
             .np-container {
                 position: relative;
-                background-color: rgba(0, 0, 0, 0.9);
-                backdrop-filter: blur(16px);
-                color: #ffffff;
+                background: linear-gradient(180deg, #120020 0%, #08000F 100%);
+                backdrop-filter: blur(20px);
+                color: #F3E8FF;
                 padding: 24px;
-                border-radius: 7px;
-                min-width: 500px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 3px;
+                min-width: 480px;
+                border: 1px solid rgba(168, 85, 247, 0.15);
+                animation: accentPulse 4s ease-in-out infinite;
+                overflow: hidden;
+            }
+            .np-container::before {
+                content: '';
+                position: absolute;
+                top: 0; left: 0; right: 0;
+                height: 2px;
+                background: linear-gradient(90deg, #7C3AED, #A855F7);
             }
             .np-header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 16px;
+                padding-bottom: 14px;
+                border-bottom: 1px solid rgba(168, 85, 247, 0.12);
             }
             .np-title {
-                font-size: 18px;
-                font-weight: 700;
-                background: linear-gradient(to right, #60a5fa, #a78bfa, #f472b6);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
+                font-size: 15px;
+                font-weight: 600;
+                color: #A855F7;
+                letter-spacing: -0.01em;
+                -webkit-text-fill-color: #A855F7;
             }
             .np-close {
-                background: none;
-                border: none;
-                color: #9ca3af;
-                font-size: 24px;
+                background: transparent;
+                border: 1px solid transparent;
+                color: rgba(243, 232, 255, 0.28);
+                font-size: 20px;
                 cursor: pointer;
-                padding: 4px;
+                padding: 4px 6px;
+                border-radius: 3px;
+                transition: all 0.18s ease;
+                line-height: 1;
+                -webkit-text-fill-color: rgba(243, 232, 255, 0.28);
             }
-            .np-close:hover { color: #ffffff; }
+            .np-close:hover {
+                color: #F3E8FF;
+                -webkit-text-fill-color: #F3E8FF;
+                background: rgba(168, 85, 247, 0.08);
+                border-color: rgba(168, 85, 247, 0.15);
+            }
             .np-description {
-                font-size: 14px;
-                color: #d1d5db;
-                margin-bottom: 24px;
-                background: rgba(255, 255, 255, 0.05);
-                padding: 12px;
-                border-radius: 6px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                font-size: 12px;
+                color: rgba(243, 232, 255, 0.55);
+                -webkit-text-fill-color: rgba(243, 232, 255, 0.55);
+                margin-bottom: 20px;
+                background: rgba(168, 85, 247, 0.04);
+                padding: 12px 14px;
+                border-radius: 3px;
+                border: 1px solid rgba(168, 85, 247, 0.1);
+                border-left: 3px solid rgba(168, 85, 247, 0.4);
+                line-height: 1.6;
             }
-            .np-description span { color: #34d399; font-weight: 600; }
+            .np-description span {
+                color: #4ADE80;
+                -webkit-text-fill-color: #4ADE80;
+                font-weight: 600;
+            }
             .np-btn-grid {
                 display: grid;
                 grid-template-columns: 1fr 1fr 1fr;
-                gap: 12px;
+                gap: 10px;
             }
             .np-btn-card {
                 position: relative;
-                padding: 1px;
-                border-radius: 8px;
-                background: rgba(255, 255, 255, 0.1);
-                transition: transform 0.2s;
+                border-radius: 3px;
+                transition: all 0.18s ease;
             }
-            .np-btn-card:hover { transform: translateY(-2px); }
-            .np-btn-card.orange:hover { background: linear-gradient(to bottom right, #f97316, #ef4444); }
-            .np-btn-card.green:hover { background: linear-gradient(to bottom right, #22c55e, #10b981); }
-            .np-btn-card.purple:hover { background: linear-gradient(to bottom right, #8b5cf6, #ec4899); }
-            
+            .np-btn-card:hover { transform: translateY(-1px); }
+
             .np-btn {
                 width: 100%;
                 height: 100%;
-                background: #000000;
-                border: none;
-                border-radius: 7px;
-                color: #ffffff;
-                padding: 12px 8px;
+                background: rgba(168, 85, 247, 0.06);
+                border: 1px solid rgba(168, 85, 247, 0.15);
+                border-radius: 3px;
+                color: rgba(243, 232, 255, 0.55);
+                -webkit-text-fill-color: rgba(243, 232, 255, 0.55);
+                padding: 14px 10px;
                 cursor: pointer;
-                font-size: 13px;
-                font-weight: 500;
+                font-size: 11px;
+                font-weight: 600;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                gap: 8px;
+                gap: 6px;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                transition: all 0.18s ease;
             }
-            .np-btn:hover { background: #111111; }
+            .np-btn:hover {
+                background: rgba(168, 85, 247, 0.12);
+                border-color: rgba(168, 85, 247, 0.4);
+                color: #F3E8FF;
+                -webkit-text-fill-color: #F3E8FF;
+                box-shadow: 0 0 12px rgba(168, 85, 247, 0.15);
+            }
+            .np-btn:active {
+                transform: scale(0.97);
+            }
+            .np-btn-primary {
+                background: linear-gradient(135deg, #6D28D9 0%, #A855F7 100%);
+                border: none;
+                color: #ffffff;
+                -webkit-text-fill-color: #ffffff;
+            }
+            .np-btn-primary:hover {
+                box-shadow: 0 0 16px rgba(168, 85, 247, 0.3);
+                background: linear-gradient(135deg, #7C3AED 0%, #B56EF8 100%);
+            }
         `;
         shadow.appendChild(styles);
 
@@ -155,13 +204,13 @@
                     Redirection: Selected source will be reported as "Full Monitor" to the website.
                 </div>
                 <div class="np-btn-grid">
-                    <div class="np-btn-card orange">
+                    <div class="np-btn-card">
                         <button class="np-btn" id="mode-tab">Share Tab/Window</button>
                     </div>
-                    <div class="np-btn-card green">
-                        <button class="np-btn" id="mode-blank">Share Blank Screen</button>
+                    <div class="np-btn-card">
+                        <button class="np-btn np-btn-primary" id="mode-blank">Share Blank Screen</button>
                     </div>
-                    <div class="np-btn-card purple">
+                    <div class="np-btn-card">
                         <button class="np-btn" id="mode-freeze">Share Frozen Screen</button>
                     </div>
                 </div>

@@ -1,3 +1,24 @@
+// ------- Domain whitelist: only enable paste helpers on target sites -------
+const __NEOPASS_ALLOWED_HOSTS = [
+    'iamneo',
+    'examly',
+    'netacad.com'
+];
+
+function __isNeopassAllowedHost() {
+    try {
+        const host = window.location.hostname || '';
+        return __NEOPASS_ALLOWED_HOSTS.some(p => host.includes(p));
+    } catch (e) {
+        return false;
+    }
+}
+
+if (!__isNeopassAllowedHost()) {
+    // Not a target domain; do not attach any paste/drag handlers.
+    console.log('[NeoPass] customPaste disabled on this host:', window.location.hostname);
+} else {
+
 async function performPasteByTyping() {
     console.log('[PasteByTyping] Function called');
     
@@ -404,3 +425,5 @@ document.addEventListener('keydown', async function(event) {
         await performDragDropPaste();
     }
 }, true);
+
+} // end whitelist else block

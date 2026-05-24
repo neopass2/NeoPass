@@ -23,11 +23,12 @@ function blockRequests() {
         clearTimeout(requestTimeout);
     }
     
-    // Set timeout to unblock after 15 seconds
+    // Set timeout to unblock after request timeout + 5 seconds buffer
+    const safetyTimeout = (CONFIG.REQUEST_TIMEOUT || 15000) + 5000;
     requestTimeout = setTimeout(() => {
         isRequestInProgress = false;
-        console.log('[Request Block] Unblocked after 15 seconds timeout');
-    }, 15000);
+        console.log(`[Request Block] Unblocked after ${safetyTimeout}ms timeout`);
+    }, safetyTimeout);
 }
 
 function unblockRequests() {

@@ -33,6 +33,7 @@ export function showLoggedInState(username, accountData) {
     // If account data is provided, display it immediately
     if (accountData) {
         displayAccountInfo(accountData);
+        checkUnreadNotifications();
     } else {
         // Set loading state and fetch account information
         document.getElementById('accountUsername').textContent = 'Loading...';

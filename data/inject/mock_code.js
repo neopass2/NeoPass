@@ -52,6 +52,4 @@
             }
         })();
     };
-
-    console.log('✅ Fetch interceptor installed');
 })();

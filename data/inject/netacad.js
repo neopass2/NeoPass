@@ -336,6 +336,9 @@
             // Placeholder for credit deduction
         }
 
+        // Log this solve event for analytics (batched in background)
+        try { chrome.runtime.sendMessage({ action: 'incrementNetacadSolve' }); } catch (e) {}
+
         if (question.questionType === 'basic') {
             const component = components.find(c => c._id === question.id);
             if (!component || !question.inputs) return;
